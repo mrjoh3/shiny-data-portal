@@ -53,6 +53,7 @@ ui <- shinyUI(
                              selectInput('xcolumn', label = 'Filter Column', choices = NULL),
                              selectInput('value', label = 'Filter Value', choices = NULL, multiple = TRUE, selectize = TRUE),
                              shiny::dateRangeInput('date', label = 'Date Range'),
+                             selectInput('groupby', label = 'Aggregate by Column', choices = NULL, multiple = TRUE, selectize = TRUE),
                              shiny::actionButton('submit', label = 'Get Data')
                           ),
                           
@@ -70,8 +71,15 @@ ui <- shinyUI(
                        )
                       ),
              tabPanel('Assess Data',
-                      tags$p('This section under construction')
+                      tags$p('This section under construction'),
+                      fluidRow(
+                        column(2),
+                        column(8,
+                          uiOutput('describe')
+                        ),
+                        column(2)
                       )
+             )
 
 ))
 
@@ -89,6 +97,7 @@ server <- function(input, output, session) {
       
       cols <- DBI::dbListFields(con, input_table())
       updateSelectInput(session, 'xcolumn', choices = cols)
+      updateSelectInput(session, 'groupby', choices = cols, selected = NULL)
     
     }
     
@@ -125,11 +134,46 @@ server <- function(input, output, session) {
     query <- tbl(con, input_table()) %>%
       filter(!!rlang::sym(cl) %in% vl) 
     
+    # check if there is a groupby value
+    if (length(input$groupby) > 1) {
+
+      query <- query %>%
+        group_by_at(vars(one_of(input$groupby))) %>%
+        summarise(count = n())
+    
+      }
+    
     db_table <- query %>%
       collect()
 
     output$tbl <- DT::renderDataTable({db_table})
     output$qry <- renderText({dbplyr::sql_render(query)})
+    output$describe <- renderUI({
+      di <- Hmisc::describe(db_table)
+      
+      tagList(
+        lapply(di, function(d) {
+            tagList(
+              fluidRow(
+              tags$h3(d$descript),
+              column(width = 3,
+                DT::renderDataTable({data.frame(d$counts)})
+                ),
+              column(width = 9,
+                #DT::renderDataTable({data.frame(d$values)})
+                c3::renderC3({
+                  data.frame(d$values) %>% 
+                    mutate(value = as.character(value),
+                           frequency = as.numeric(frequency)) %>%
+                    c3::c3(x = 'value', y = 'frequency') %>% c3::c3_bar()
+                })
+              )
+            )
+          )
+        })
+      )
+      
+      })
 
   })
   
