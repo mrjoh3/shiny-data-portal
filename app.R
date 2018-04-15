@@ -8,6 +8,33 @@
 #
 
 library(shiny)
+library(dbplyr)
+
+# add testing data to the database
+con <- DBI::dbConnect(RPostgres::Postgres(), 
+                      host = 'localhost',
+                      port = 5432,
+                      db = 'gisdata',
+                      user = 'gisuser',
+                      password = rstudioapi::askForPassword())
+
+copy_to(con, nycflights13::flights, 'flights', 
+        temporary = FALSE,
+        indexes = list(
+          c("year", 'month', 'day'),
+          'carrier',
+          'tailnum',
+          'dest'
+        ))
+copy_to(con, nycflights13::flights, 'flights', 
+        temporary = FALSE,
+        indexes = list(
+          c("year", 'month', 'day'),
+          'carrier',
+          'tailnum',
+          'dest'
+        ))
+
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -38,14 +65,6 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
   
-  con <- DBI::dbConnect(RPostgres::Postgres(), 
-                        host = 'localhost',
-                        port = 5432,
-                        db = 'gisdata',
-                        user = 'gisuser',
-                        password = 'kubexapa')
-  
-  
   # get list of columns to query
   observe({
     
@@ -67,7 +86,7 @@ server <- function(input, output, session) {
   # get list of values for column
   observe({
 
-    selected_col <- input$column
+    req(selected_col <- input$column)
     print(selected_col)
     
     if (!is.null(selected_col) | selected_col != '') {
