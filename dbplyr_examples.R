@@ -7,7 +7,7 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
                       port = 5432,
                       db = 'gisdata',
                       user = 'gisuser',
-                      password = 'kubexapa')
+                      password = rstudioapi::askForPassword())
 
 copy_to(con, nycflights13::flights, 'flights', 
         temporary = FALSE,
@@ -29,3 +29,17 @@ dest <- flights_db %>%
   select_('dest') %>%
   distinct() %>%
   collect()
+
+cl <- 'carrier'
+vl <- 'DL'
+
+cl2 <- enquo(cl)
+
+fl = interp(c == v, c = cl, v = vl)
+interp(~y == x, .values=list(y = as.name(col_name), x = value))
+
+quo(
+  tbl(con, 'flights') %>%
+    filter(!!rlang::sym(cl) == vl) %>%
+    collect()
+  )
