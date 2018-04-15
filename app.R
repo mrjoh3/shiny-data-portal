@@ -38,30 +38,42 @@ if (!all(c('flights', 'iris') %in% DBI::dbListTables(con))) {
 }
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
+ui <- shinyUI(
+  navbarPage("Dynamic Data Import",
    
-   # Application title
-   titlePanel("Dynamic Data Import"),
-   
-   # Sidebar with a slider input for number of bins 
-   sidebarLayout(
-      sidebarPanel(
-         selectInput('table', label = 'Table', selected = NULL,
-                        choices = list('Flights' = 'flights',
-                                       'Iris' = 'iris')
-                        ),
-         selectInput('xcolumn', label = 'Column', choices = NULL),
-         selectInput('value', label = 'Filter Value', choices = NULL),
-         shiny::dateRangeInput('date', label = 'Date Range'),
-         shiny::actionButton('submit', label = 'Get Data')
-      ),
-      
-      # Show a plot of the generated distribution
-      mainPanel(
-         DT::dataTableOutput("tbl")
-      )
-   )
-)
+             tabPanel('Get Data',
+                      
+                      # Sidebar with a slider input for number of bins 
+                       sidebarLayout(
+                          sidebarPanel(
+                             selectInput('table', label = 'Table', selected = NULL,
+                                            choices = list('Flights' = 'flights',
+                                                           'Iris' = 'iris')
+                                            ),
+                             selectInput('xcolumn', label = 'Filter Column', choices = NULL),
+                             selectInput('value', label = 'Filter Value', choices = NULL, multiple = TRUE, selectize = TRUE),
+                             shiny::dateRangeInput('date', label = 'Date Range'),
+                             shiny::actionButton('submit', label = 'Get Data')
+                          ),
+                          
+                          # Show a plot of the generated distribution
+                          mainPanel(
+                            conditionalPanel(
+                               'input.submit > 0',
+                               DT::dataTableOutput("tbl"),
+                               tags$h3('Table retieved with SQL: '),
+                                 tags$pre(
+                                   textOutput('qry')
+                                 )
+                            )
+                          )
+                       )
+                      ),
+             tabPanel('Assess Data',
+                      tags$p('This section under construction')
+                      )
+
+))
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
@@ -72,14 +84,10 @@ server <- function(input, output, session) {
   
   # get list of columns to query
   observe({
-    
-    req(tbl_in <- input$table)
-    print(tbl_in)
 
-    if (!is.null(tbl_in)) {
+    if (!is.null(input_table())) {
       
-      cols <- DBI::dbListFields(con, tbl_in)
-
+      cols <- DBI::dbListFields(con, input_table())
       updateSelectInput(session, 'xcolumn', choices = cols)
     
     }
@@ -90,18 +98,11 @@ server <- function(input, output, session) {
   observeEvent(input$xcolumn, {
 
     req(selected_col <- input$xcolumn)
-    print(selected_col)
-
-    vals <- ''
-    
-    print(paste(input_table(), ' - inside'))
     
     if (!is.null(selected_col) | selected_col != '') {
-
-      new_col <- input_column()
       
       vals <- tbl(con, input_table()) %>%
-        select_(new_col) %>%
+        select_(selected_col) %>%
         distinct() %>%
         collect()
 
@@ -112,6 +113,7 @@ server <- function(input, output, session) {
   }, priority = 2)
 
   
+  # after parameters set build query and get data
   observeEvent(input$submit, {
     
     print(paste(input_column(), 'col to filter'))
@@ -120,11 +122,14 @@ server <- function(input, output, session) {
     cl <- input_column()
     vl <- input_vals()
     
-    db_table <- tbl(con, input_table()) %>%
-      filter(!!rlang::sym(cl) == vl) %>%
+    query <- tbl(con, input_table()) %>%
+      filter(!!rlang::sym(cl) %in% vl) 
+    
+    db_table <- query %>%
       collect()
 
     output$tbl <- DT::renderDataTable({db_table})
+    output$qry <- renderText({dbplyr::sql_render(query)})
 
   })
   
