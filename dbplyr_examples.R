@@ -40,7 +40,7 @@ interp(~y == x, .values=list(y = as.name(col_name), x = value))
 
 quo(
   tbl(con, 'flights') %>%
-    filter(!!rlang::sym(cl) == vl)
+    filter(!!rlang::sym(cl) == vl) %>%
     collect()
   )
 
@@ -48,3 +48,7 @@ query <- tbl(con, 'flights') %>%
   filter(!!rlang::sym(cl) %in% vl)
 
 dbplyr::sql_render(query)
+
+# could use following to id character fields for filter
+rs <- DBI::dbSendQuery(con, "SELECT * from flights;")
+tmp = DBI::dbColumnInfo(rs)
